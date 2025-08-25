@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Sequence
-from itertools import combinations
+from itertools import combinations, groupby
+from operator import attrgetter
 
 from email_task.shared import domain as _domain
 from email_task.shared import result as _result
@@ -13,9 +13,7 @@ from email_task.shared import result as _result
 class IndexBasedStrategy:
     """Version 2: Index-based pair finding strategy following SOLID principles."""
 
-    def collect_sum_pairs(
-        self, array: Sequence[int]
-    ) -> _result.Result[Sequence[_domain.SumGroup]]:
+    def collect_sum_pairs(self, array: Sequence[int]) -> _result.Result[Sequence[_domain.SumGroup]]:
         """Find all pairs with the same sum using index-based approach.
 
         Args:
@@ -26,14 +24,10 @@ class IndexBasedStrategy:
         """
         return _result.bind(
             self._generate_all_pairs(array),
-            lambda pairs: _result.bind(
-                self._group_by_sum(pairs), self._filter_valid_groups
-            ),
+            lambda pairs: _result.bind(self._group_by_sum(pairs), self._filter_valid_groups),
         )
 
-    def _generate_all_pairs(
-        self, array: Sequence[int]
-    ) -> _result.Result[Sequence[_domain.Pair]]:
+    def _generate_all_pairs(self, array: Sequence[int]) -> _result.Result[Sequence[_domain.Pair]]:
         """Generate all possible pairs from array indices.
 
         Single Responsibility: Only pair generation logic.
@@ -52,17 +46,11 @@ class IndexBasedStrategy:
     def _group_by_sum(
         self, pairs: Sequence[_domain.Pair]
     ) -> _result.Result[dict[int, Sequence[_domain.Pair]]]:
-        """Group pairs by their sum values.
+        """Group pairs by their sum values using functional approach."""
 
-        Single Responsibility: Only grouping logic.
-        """
+        grouped = groupby(sorted(pairs, key=attrgetter("sum")), key=attrgetter("sum"))
 
-        sum_groups: dict[int, list[_domain.Pair]] = defaultdict(list)
-
-        for pair in pairs:
-            sum_groups[pair.sum].append(pair)
-
-        return {sum_val: tuple(pair_list) for sum_val, pair_list in sum_groups.items()}
+        return {sum_val: tuple(pair_group) for sum_val, pair_group in grouped}
 
     def _filter_valid_groups(
         self, grouped_pairs: dict[int, Sequence[_domain.Pair]]
@@ -78,9 +66,7 @@ class IndexBasedStrategy:
                 case _domain.SumGroup() as sum_group:
                     valid_groups.append(sum_group)
                 case _result.Error():
-                    # Skip invalid groups (e.g., < 2 pairs) - this is expected behavior
                     continue
 
-        # Sort for consistent output (could be extracted to a separate concern)
         sorted_groups = sorted(valid_groups, key=lambda group: group.sum_value)
         return tuple(sorted_groups)
